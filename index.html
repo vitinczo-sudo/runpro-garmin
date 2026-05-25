@@ -1,0 +1,584 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>RunPro Coach</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <aside class="sidebar" aria-label="Navegacao principal">
+        <div class="brand">
+          <div class="brand-mark" aria-hidden="true">
+            <svg viewBox="0 0 24 24" role="img">
+              <path d="M5 18c4.4-8 9.2-8 14-2.4" />
+              <path d="M8.3 14.4c2.1-4.1 4.5-4.6 7.4-1.5" />
+              <path d="M3 20h18" />
+            </svg>
+          </div>
+          <div>
+            <strong>RunPro</strong>
+            <span>Coach de corrida</span>
+          </div>
+        </div>
+
+        <nav class="nav">
+          <button class="nav-item is-active" data-view="dashboard" title="Painel">
+            <span class="icon" data-icon="dashboard"></span>
+            <span>Painel</span>
+          </button>
+          <button class="nav-item" data-view="onboarding" title="Perfil">
+            <span class="icon" data-icon="user"></span>
+            <span>Perfil</span>
+          </button>
+          <button class="nav-item" data-view="test" title="Teste de 3 km">
+            <span class="icon" data-icon="timer"></span>
+            <span>Teste 3 km</span>
+          </button>
+          <button class="nav-item" data-view="plan" title="Plano de treino">
+            <span class="icon" data-icon="calendar"></span>
+            <span>Plano</span>
+          </button>
+          <button class="nav-item" data-view="races" title="Provas">
+            <span class="icon" data-icon="flag"></span>
+            <span>Provas</span>
+          </button>
+          <button class="nav-item" data-view="log" title="Registrar treino">
+            <span class="icon" data-icon="clipboard"></span>
+            <span>Registro</span>
+          </button>
+          <button class="nav-item" data-view="garmin" title="Garmin">
+            <span class="icon" data-icon="watch"></span>
+            <span>Garmin</span>
+          </button>
+        </nav>
+
+        <div class="sync-status" id="syncStatus">
+          <span class="status-dot"></span>
+          <div>
+            <strong>Garmin desconectado</strong>
+            <span>Pronto para importar .csv/.json</span>
+          </div>
+        </div>
+      </aside>
+
+      <main class="main">
+        <header class="topbar">
+          <div>
+            <p class="eyebrow">Treinador profissional adaptativo</p>
+            <h1 id="pageTitle">Painel do atleta</h1>
+          </div>
+          <div class="top-actions">
+            <button class="icon-button" id="resetApp" title="Reiniciar dados">
+              <span class="icon" data-icon="refresh"></span>
+            </button>
+            <button class="primary-action" data-jump="onboarding">
+              <span class="icon" data-icon="spark"></span>
+              Configurar atleta
+            </button>
+          </div>
+        </header>
+
+        <section class="view is-active" id="dashboard">
+          <div class="dashboard-grid">
+            <section class="summary-panel">
+              <div class="route-visual" aria-hidden="true">
+                <div class="sun"></div>
+                <svg viewBox="0 0 720 300" preserveAspectRatio="none">
+                  <defs>
+                    <linearGradient id="trackLine" x1="0" x2="1" y1="0" y2="0">
+                      <stop offset="0" stop-color="#1f9d8a" />
+                      <stop offset="0.5" stop-color="#f26b4f" />
+                      <stop offset="1" stop-color="#2f5bea" />
+                    </linearGradient>
+                  </defs>
+                  <path class="terrain" d="M0 232 C90 192 141 237 220 204 C316 164 371 172 442 135 C540 84 612 119 720 67 L720 300 L0 300 Z" />
+                  <path class="route" d="M22 238 C91 196 135 237 214 205 C314 164 372 172 441 136 C540 85 610 118 697 75" />
+                  <circle class="runner-dot" cx="22" cy="238" r="8" />
+                </svg>
+              </div>
+              <div class="summary-copy">
+                <p class="eyebrow">Hoje</p>
+                <h2 id="heroHeadline">Monte seu plano com base no seu teste de 3 km</h2>
+                <p id="heroText">Responda ao perfil, informe seus dias de treino e registre o teste para gerar semanas ajustadas ao seu ritmo real.</p>
+                <div class="hero-actions">
+                  <button class="primary-action" data-jump="onboarding">
+                    <span class="icon" data-icon="user"></span>
+                    Comecar perfil
+                  </button>
+                  <button class="ghost-action" data-jump="test">
+                    <span class="icon" data-icon="timer"></span>
+                    Fazer teste
+                  </button>
+                </div>
+              </div>
+            </section>
+
+            <section class="metrics-panel">
+              <article class="metric-card">
+                <span>Volume semanal</span>
+                <strong id="weeklyVolume">0 km</strong>
+                <small id="volumeTrend">Configure seu perfil</small>
+              </article>
+              <article class="metric-card">
+                <span>Ritmo 3 km</span>
+                <strong id="testPace">--:--/km</strong>
+                <small id="testAge">Sem teste salvo</small>
+              </article>
+              <article class="metric-card">
+                <span>Aderencia</span>
+                <strong id="adherence">0%</strong>
+                <small id="adherenceText">Sem treinos registrados</small>
+              </article>
+              <article class="metric-card">
+                <span>Carga</span>
+                <strong id="loadStatus">Base</strong>
+                <small id="loadAdvice">Sem ajustes ainda</small>
+              </article>
+            </section>
+
+            <section class="workout-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Proximo treino</p>
+                  <h2 id="nextWorkoutTitle">Nenhum treino gerado</h2>
+                </div>
+                <button class="icon-button" data-jump="plan" title="Ver plano">
+                  <span class="icon" data-icon="arrow"></span>
+                </button>
+              </div>
+              <div id="nextWorkoutBody" class="workout-detail empty-state">
+                Configure o atleta e gere um plano para ver a proxima sessao.
+              </div>
+            </section>
+
+            <section class="zones-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Zonas calculadas</p>
+                  <h2>Ritmos de treino</h2>
+                </div>
+              </div>
+              <div id="zonesList" class="zones-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="onboarding">
+          <form class="form-layout" id="profileForm">
+            <section class="form-panel wide">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Perfil do atleta</p>
+                  <h2>Cadastro inicial</h2>
+                </div>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Nome
+                  <input type="text" name="name" placeholder="Seu nome" autocomplete="name" />
+                </label>
+                <label>
+                  Peso atual
+                  <input type="number" name="weightKg" min="25" max="220" step="0.1" placeholder="kg" />
+                </label>
+                <label>
+                  Distancia que desejo correr
+                  <select name="goalDistance">
+                    <option value="5K">5 km</option>
+                    <option value="10K">10 km</option>
+                    <option value="21K">21 km</option>
+                    <option value="42K">42 km</option>
+                    <option value="base">Ganhar base</option>
+                  </select>
+                </label>
+                <label>
+                  Base atual
+                  <select name="currentDistance">
+                    <option value="0-3">0 a 3 km</option>
+                    <option value="3-5">3 a 5 km</option>
+                    <option value="5-10">5 a 10 km</option>
+                    <option value="10-16">10 a 16 km</option>
+                    <option value="16+">16 km ou mais</option>
+                  </select>
+                </label>
+                <label>
+                  Volume semanal atual, se souber
+                  <input type="number" name="weeklyKm" min="0" max="180" step="1" placeholder="Ex.: 24" />
+                </label>
+                <label>
+                  Maior treino recente, se souber
+                  <input type="number" name="longRunKm" min="0" max="60" step="0.5" placeholder="Ex.: 8" />
+                </label>
+                <label>
+                  Nivel
+                  <select name="level">
+                    <option value="iniciante">Iniciante</option>
+                    <option value="intermediario">Intermediario</option>
+                    <option value="avancado">Avancado</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <section class="form-panel">
+              <div class="section-heading compact">
+                <div>
+                  <p class="eyebrow">Agenda</p>
+                  <h2>Dias de treino</h2>
+                </div>
+              </div>
+              <div class="day-picker" id="dayPicker" role="group" aria-label="Dias disponiveis">
+                <label><input type="checkbox" name="days" value="1" />Seg</label>
+                <label><input type="checkbox" name="days" value="2" />Ter</label>
+                <label><input type="checkbox" name="days" value="3" />Qua</label>
+                <label><input type="checkbox" name="days" value="4" />Qui</label>
+                <label><input type="checkbox" name="days" value="5" />Sex</label>
+                <label><input type="checkbox" name="days" value="6" />Sab</label>
+                <label><input type="checkbox" name="days" value="0" />Dom</label>
+              </div>
+            </section>
+
+            <section class="form-panel">
+              <div class="section-heading compact">
+                <div>
+                  <p class="eyebrow">Preferencias</p>
+                  <h2>Controle de carga</h2>
+                </div>
+              </div>
+              <div class="field-grid one">
+                <label>
+                  Data de inicio
+                  <input type="date" name="startDate" />
+                </label>
+                <label>
+                  Sensibilidade a lesao
+                  <select name="risk">
+                    <option value="conservador">Conservador</option>
+                    <option value="normal">Normal</option>
+                    <option value="agressivo">Agressivo</option>
+                  </select>
+                </label>
+                <label>
+                  Preferencia do longao
+                  <select name="longRunDay">
+                    <option value="6">Sabado</option>
+                    <option value="0">Domingo</option>
+                    <option value="auto">Melhor dia disponivel</option>
+                  </select>
+                </label>
+              </div>
+            </section>
+
+            <div class="form-actions">
+              <button type="submit" class="primary-action">
+                <span class="icon" data-icon="save"></span>
+                Salvar cadastro e ir para teste
+              </button>
+              <button type="button" class="ghost-action" id="sampleAthlete">
+                <span class="icon" data-icon="spark"></span>
+                Preencher exemplo
+              </button>
+            </div>
+          </form>
+        </section>
+
+        <section class="view" id="test">
+          <div class="test-layout">
+            <section class="protocol-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Teste de campo</p>
+                  <h2>Teste de 3 km</h2>
+                </div>
+              </div>
+              <ol class="protocol-list">
+                <li>10 a 15 min de trote leve.</li>
+                <li>4 aceleracoes de 20 s com recuperacao andando.</li>
+                <li>3 km no melhor ritmo sustentavel, sem sprintar o primeiro km.</li>
+                <li>10 min de desaquecimento e anotacao de percepcao de esforco.</li>
+              </ol>
+              <div class="test-visual" aria-hidden="true">
+                <svg viewBox="0 0 500 140">
+                  <path d="M20 104 C92 30 166 122 239 66 C304 16 382 44 480 25" />
+                  <circle cx="20" cy="104" r="7" />
+                  <circle cx="239" cy="66" r="7" />
+                  <circle cx="480" cy="25" r="7" />
+                </svg>
+              </div>
+            </section>
+
+            <form class="form-panel test-form" id="testForm">
+              <div class="section-heading compact">
+                <div>
+                  <p class="eyebrow">Resultado</p>
+                  <h2>Informe seu 3 km</h2>
+                </div>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Data
+                  <input type="date" name="testDate" />
+                </label>
+                <label>
+                  Tempo total
+                  <input type="text" name="testTime" inputmode="numeric" placeholder="Ex.: 14:30" />
+                </label>
+                <label>
+                  FC media
+                  <input type="number" name="avgHr" min="80" max="230" placeholder="Opcional" />
+                </label>
+                <label>
+                  Esforco percebido
+                  <input type="range" name="rpe" min="1" max="10" value="8" />
+                </label>
+              </div>
+              <button type="submit" class="primary-action">
+                <span class="icon" data-icon="calculator"></span>
+                Calcular zonas
+              </button>
+            </form>
+
+            <section class="zones-panel large">
+              <div class="section-heading compact">
+                <div>
+                  <p class="eyebrow">Saida do teste</p>
+                  <h2>Zonas por ritmo</h2>
+                </div>
+              </div>
+              <div id="testResult" class="test-result empty-state">Registre o tempo de 3 km para liberar as zonas.</div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="plan">
+          <div class="plan-toolbar">
+            <div>
+              <p class="eyebrow" id="cycleEyebrow">Ciclo mensal</p>
+              <h2>Planilha mensal</h2>
+            </div>
+            <div class="toolbar-actions">
+              <button class="ghost-action" id="regeneratePlan">
+                <span class="icon" data-icon="refresh"></span>
+                Regerar
+              </button>
+              <button class="ghost-action" id="finishCycle">
+                <span class="icon" data-icon="check"></span>
+                Finalizar mes
+              </button>
+              <button class="primary-action" id="exportPlan">
+                <span class="icon" data-icon="download"></span>
+                Exportar plano
+              </button>
+            </div>
+          </div>
+          <div id="planGrid" class="plan-grid"></div>
+          <section class="training-library">
+            <div class="section-heading">
+              <div>
+                <p class="eyebrow">Biblioteca validada</p>
+                <h2>Treinos configurados</h2>
+              </div>
+            </div>
+            <div id="trainingLibrary" class="library-grid"></div>
+          </section>
+        </section>
+
+        <section class="view" id="races">
+          <div class="races-layout">
+            <form class="form-panel" id="raceForm">
+              <div class="section-heading compact">
+                <div>
+                  <p class="eyebrow">Calendario competitivo</p>
+                  <h2>Adicionar prova</h2>
+                </div>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Nome da prova
+                  <input type="text" name="raceName" placeholder="Ex.: Circuito das Estacoes" />
+                </label>
+                <label>
+                  Data
+                  <input type="date" name="raceDate" />
+                </label>
+                <label>
+                  Distancia
+                  <select name="raceDistance">
+                    <option value="5">5 km</option>
+                    <option value="10">10 km</option>
+                    <option value="15">15 km</option>
+                    <option value="21.1">21 km</option>
+                    <option value="42.2">42 km</option>
+                  </select>
+                </label>
+                <label>
+                  Prioridade
+                  <select name="racePriority">
+                    <option value="A">Prova alvo</option>
+                    <option value="B">Prova preparatoria</option>
+                    <option value="C">Treino organizado</option>
+                  </select>
+                </label>
+              </div>
+              <label class="full-label">
+                Objetivo da prova
+                <input type="text" name="raceGoal" placeholder="Ex.: completar bem, sub 50 min, testar ritmo" />
+              </label>
+              <button type="submit" class="primary-action">
+                <span class="icon" data-icon="flag"></span>
+                Salvar prova e ajustar calendario
+              </button>
+            </form>
+
+            <section class="history-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Foco do ciclo</p>
+                  <h2>Provas cadastradas</h2>
+                </div>
+              </div>
+              <div id="raceFocus" class="coach-feedback empty-state">Adicione uma prova para o calendario ajustar carga, longos e polimento.</div>
+              <div id="raceList" class="history-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="log">
+          <div class="log-layout">
+            <form class="form-panel" id="logForm">
+              <div class="section-heading compact">
+                <div>
+                  <p class="eyebrow">Diario</p>
+                  <h2>Registrar treino realizado</h2>
+                </div>
+              </div>
+              <div class="field-grid">
+                <label>
+                  Treino planejado
+                  <select name="workoutId" id="workoutSelect"></select>
+                </label>
+                <label>
+                  Data
+                  <input type="date" name="logDate" />
+                </label>
+                <label>
+                  Distancia
+                  <input type="number" name="distance" min="0" step="0.01" placeholder="km" />
+                </label>
+                <label>
+                  Duracao
+                  <input type="text" name="duration" inputmode="numeric" placeholder="Ex.: 45:20" />
+                </label>
+                <label>
+                  Esforco
+                  <input type="range" name="effort" min="1" max="10" value="5" />
+                </label>
+                <label>
+                  Sensacao
+                  <select name="feeling">
+                    <option value="leve">Leve</option>
+                    <option value="bom">Bom</option>
+                    <option value="pesado">Pesado</option>
+                    <option value="dor">Dor/incômodo</option>
+                  </select>
+                </label>
+              </div>
+              <label class="full-label">
+                Observacoes
+                <textarea name="notes" rows="4" placeholder="Sono, percurso, clima, dores, alimentacao..."></textarea>
+              </label>
+              <button type="submit" class="primary-action">
+                <span class="icon" data-icon="save"></span>
+                Salvar treino
+              </button>
+            </form>
+
+            <section class="history-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Aprendizado</p>
+                  <h2>Historico e ajustes</h2>
+                </div>
+              </div>
+              <div id="coachFeedback" class="coach-feedback empty-state">Registre treinos para o treinador ajustar carga, volume e intensidade.</div>
+              <div id="historyList" class="history-list"></div>
+            </section>
+          </div>
+        </section>
+
+        <section class="view" id="garmin">
+          <div class="garmin-layout">
+            <section class="garmin-panel">
+              <div class="section-heading">
+                <div>
+                  <p class="eyebrow">Conexao</p>
+                  <h2>Garmin</h2>
+                </div>
+              </div>
+              <p class="panel-copy">Este prototipo simula a conexao OAuth e trabalha com importacao/exportacao local. Para sincronizacao real, e necessario backend aprovado no Garmin Connect Developer Program, usando Activity API para atividades e Training API para treinos.</p>
+              <div class="garmin-actions">
+                <button class="primary-action" id="connectGarmin">
+                  <span class="icon" data-icon="watch"></span>
+                  Conectar Garmin
+                </button>
+                <button class="ghost-action" id="disconnectGarmin">
+                  <span class="icon" data-icon="unlink"></span>
+                  Desconectar
+                </button>
+              </div>
+              <div class="integration-steps">
+                <div><strong>1</strong><span>Autorizar atleta</span></div>
+                <div><strong>2</strong><span>Importar atividades</span></div>
+                <div><strong>3</strong><span>Exportar treinos estruturados</span></div>
+              </div>
+            </section>
+
+            <section class="form-panel">
+              <div class="section-heading compact">
+                <div>
+                  <p class="eyebrow">Importar</p>
+                  <h2>Atividades realizadas</h2>
+                </div>
+              </div>
+              <label class="file-drop">
+                <input type="file" id="activityImport" accept=".json,.csv" />
+                <span class="icon" data-icon="upload"></span>
+                <strong>Selecionar .csv ou .json</strong>
+                <small>Campos aceitos: date, distance, duration, effort, notes</small>
+              </label>
+              <div id="importPreview" class="import-preview empty-state">Nenhum arquivo importado.</div>
+            </section>
+
+            <section class="form-panel">
+              <div class="section-heading compact">
+                <div>
+                  <p class="eyebrow">Exportar</p>
+                  <h2>Treino para dispositivo</h2>
+                </div>
+              </div>
+              <label>
+                Escolha o treino
+                <select id="exportWorkoutSelect"></select>
+              </label>
+              <div class="export-buttons">
+                <button class="ghost-action" id="exportWorkoutJson">
+                  <span class="icon" data-icon="download"></span>
+                  JSON
+                </button>
+                <button class="ghost-action" id="exportWorkoutTcx">
+                  <span class="icon" data-icon="download"></span>
+                  TCX
+                </button>
+              </div>
+            </section>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="app.js"></script>
+  </body>
+</html>
