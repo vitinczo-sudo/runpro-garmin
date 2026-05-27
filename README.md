@@ -10,7 +10,9 @@ Protótipo de web app para treinador de corrida profissional com:
 - calendário de provas com ajuste automático de carga e polimento;
 - fechamento do mês para criar novo ciclo com base no mês anterior;
 - diário de treinos realizados com ajuste automático de carga;
+- ajuste de carga mais rigido com controle de progressao semanal, espacamento de treinos duros, limite de longao e bloco de retorno (dor/inatividade);
 - área Garmin com conexão simulada, importação `.csv`/`.json` e exportação `.json`/`.tcx`.
+- login multiusuario com Supabase (perfil individual e isolamento por atleta).
 
 ## Como abrir
 
@@ -51,6 +53,15 @@ Com o backend no ar, o botao "Conectar Garmin" do app ja inicia o fluxo OAuth no
 - Blueprint pronto: [render.yaml](<C:/Users/vitor.bernardo/Documents/Codex/2026-05-19/criar-um-aplicativo-ou-site-que/render.yaml>)
 - O backend agora tambem serve o frontend estatico no mesmo dominio.
 - Guia completo: [backend/README.md](<C:/Users/vitor.bernardo/Documents/Codex/2026-05-19/criar-um-aplicativo-ou-site-que/backend/README.md>)
+
+## Banco e usuarios (Supabase)
+
+- SQL pronto: [backend/supabase/schema.sql](<C:/Users/vitor.bernardo/Documents/Codex/2026-05-19/criar-um-aplicativo-ou-site-que/backend/supabase/schema.sql>)
+- Configure no Render:
+  - `SUPABASE_URL`
+  - `SUPABASE_ANON_KEY`
+- O frontend pega essas variaveis via `/api/public-config`.
+- Cada usuario autenticado salva seu estado na tabela `user_states` com RLS (um usuario nao acessa dados do outro).
 
 ## Formato de importação Garmin/local
 

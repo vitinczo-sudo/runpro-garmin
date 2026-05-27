@@ -152,6 +152,19 @@ const server = http.createServer(async (req, res) => {
       );
     }
 
+    if (method === "GET" && path === "/api/public-config") {
+      return sendJson(
+        res,
+        200,
+        {
+          supabase_url: config.supabaseUrl || "",
+          supabase_anon_key: config.supabaseAnonKey || "",
+          app_public_url: config.appPublicUrl,
+        },
+        reqOrigin,
+      );
+    }
+
     if (method === "GET" && path === "/api/garmin/connect/start") {
       const missing = requireGarminOAuthConfig();
       if (missing.length) {

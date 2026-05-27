@@ -16,6 +16,10 @@ services:
         value: https://runpro-garmin.onrender.com
       - key: APP_PUBLIC_URL
         value: https://runpro-garmin.onrender.com
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
       - key: GARMIN_CLIENT_ID
         sync: false
       - key: GARMIN_CLIENT_SECRET

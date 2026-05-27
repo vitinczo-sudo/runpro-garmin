@@ -5,7 +5,9 @@ const GARMIN_BACKEND_BASE = (() => {
   if (/^https?:\/\/(localhost|127\.0\.0\.1)(:\d+)?$/i.test(origin)) return "http://localhost:8787";
   return origin;
 })();
-const GARMIN_LOCAL_USER_ID = "local-athlete";
+let supabaseUrl = window.RUNPRO_SUPABASE_URL || "";
+let supabaseAnonKey = window.RUNPRO_SUPABASE_ANON_KEY || "";
+const SUPABASE_STATE_TABLE = "user_states";
 
 const dayNames = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sab"];
 const fullDayNames = ["Domingo", "Segunda", "Terca", "Quarta", "Quinta", "Sexta", "Sabado"];
@@ -66,20 +68,25 @@ const defaultState = {
 };
 
 let state = loadState();
+let supabaseClient = null;
+let currentUser = null;
+let authMode = "signin";
+let saveTimer = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   hydrateIcons();
   setDefaultDates();
   bindNavigation();
   bindForms();
+  bindAuth();
   bindGarmin();
   renderAll();
-  syncGarminConnection();
+  initAuthAndLoadState();
 });
 
 function loadState() {
   try {
-    const parsed = JSON.parse(localStorage.getItem(STORAGE_KEY));
+    const parsed = JSON.parse(localStorage.getItem(localStateKey()));
     return { ...defaultState, ...parsed };
   } catch {
     return structuredClone(defaultState);
@@ -87,7 +94,16 @@ function loadState() {
 }
 
 function saveState() {
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  localStorage.setItem(localStateKey(), JSON.stringify(state));
+  queueRemoteStateSave();
+}
+
+function localStateKey(userId = currentUser?.id || "anon") {
+  return `${STORAGE_KEY}:${userId}`;
+}
+
+function garminUserId() {
+  return currentUser?.id || "local-athlete";
 }
 
 function hydrateIcons() {
@@ -102,6 +118,147 @@ function setDefaultDates() {
   document.querySelectorAll('input[type="date"]').forEach((input) => {
     if (!input.value) input.value = today;
   });
+}
+
+function bindAuth() {
+  const dialog = document.getElementById("authDialog");
+  const close = document.getElementById("authDialogClose");
+  const signInBtn = document.getElementById("signInBtn");
+  const signUpBtn = document.getElementById("signUpBtn");
+  const signOutBtn = document.getElementById("signOutBtn");
+  const form = document.getElementById("authForm");
+
+  close.addEventListener("click", () => dialog.close());
+  signInBtn.addEventListener("click", () => openAuthDialog("signin"));
+  signUpBtn.addEventListener("click", () => openAuthDialog("signup"));
+  signOutBtn.addEventListener("click", async () => {
+    if (!supabaseClient) return;
+    await supabaseClient.auth.signOut();
+    currentUser = null;
+    state = loadState();
+    renderAll();
+    renderAuthStrip();
+    syncGarminConnection();
+    showToast("Sessao encerrada.");
+  });
+
+  form.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    if (!supabaseClient) {
+      showToast("Supabase nao configurado. Rode em modo local ou configure variaveis.");
+      return;
+    }
+    const data = new FormData(form);
+    const email = String(data.get("authEmail") || "").trim();
+    const password = String(data.get("authPassword") || "");
+    if (!email || !password) return;
+
+    if (authMode === "signup") {
+      const { error } = await supabaseClient.auth.signUp({ email, password });
+      if (error) return showToast(`Cadastro falhou: ${error.message}`);
+      showToast("Conta criada. Verifique seu email para confirmar.");
+      dialog.close();
+      return;
+    }
+
+    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+    if (error) return showToast(`Login falhou: ${error.message}`);
+    dialog.close();
+    showToast("Login realizado.");
+  });
+}
+
+function openAuthDialog(mode) {
+  authMode = mode;
+  const dialog = document.getElementById("authDialog");
+  const title = document.getElementById("authDialogTitle");
+  const submit = document.getElementById("authSubmitBtn");
+  title.textContent = mode === "signup" ? "Criar conta" : "Entrar";
+  submit.textContent = mode === "signup" ? "Criar conta" : "Entrar";
+  dialog.showModal();
+}
+
+async function initAuthAndLoadState() {
+  await hydratePublicConfig();
+  const SupabaseGlobal = window.supabase;
+  if (supabaseUrl && supabaseAnonKey && SupabaseGlobal?.createClient) {
+    supabaseClient = SupabaseGlobal.createClient(supabaseUrl, supabaseAnonKey);
+    const { data } = await supabaseClient.auth.getSession();
+    currentUser = data?.session?.user || null;
+    supabaseClient.auth.onAuthStateChange(async (_event, session) => {
+      currentUser = session?.user || null;
+      await hydrateStateFromSources();
+      renderAuthStrip();
+      renderAll();
+      syncGarminConnection();
+    });
+  }
+  await hydrateStateFromSources();
+  renderAuthStrip();
+  renderAll();
+  syncGarminConnection();
+}
+
+async function hydratePublicConfig() {
+  if (supabaseUrl && supabaseAnonKey) return;
+  try {
+    const response = await fetch(`${GARMIN_BACKEND_BASE}/api/public-config`);
+    if (!response.ok) return;
+    const payload = await response.json();
+    supabaseUrl = payload.supabase_url || supabaseUrl;
+    supabaseAnonKey = payload.supabase_anon_key || supabaseAnonKey;
+  } catch {
+    // No-op: app remains usable in local-only mode.
+  }
+}
+
+async function hydrateStateFromSources() {
+  state = loadState();
+  if (!supabaseClient || !currentUser) return;
+  try {
+    const { data, error } = await supabaseClient
+      .from(SUPABASE_STATE_TABLE)
+      .select("app_state")
+      .eq("user_id", currentUser.id)
+      .maybeSingle();
+    if (error) throw error;
+    if (data?.app_state) {
+      state = { ...defaultState, ...data.app_state };
+      localStorage.setItem(localStateKey(currentUser.id), JSON.stringify(state));
+    }
+  } catch {
+    showToast("Nao consegui carregar dados na nuvem. Seguindo com cache local.");
+  }
+}
+
+function queueRemoteStateSave() {
+  if (!supabaseClient || !currentUser) return;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(async () => {
+    try {
+      const payload = {
+        user_id: currentUser.id,
+        app_state: state,
+        updated_at: new Date().toISOString(),
+      };
+      const { error } = await supabaseClient.from(SUPABASE_STATE_TABLE).upsert(payload, { onConflict: "user_id" });
+      if (error) throw error;
+    } catch {
+      // Keep local flow resilient if remote persistence fails.
+    }
+  }, 350);
+}
+
+function renderAuthStrip() {
+  const identity = document.getElementById("authIdentity");
+  const signInBtn = document.getElementById("signInBtn");
+  const signUpBtn = document.getElementById("signUpBtn");
+  const signOutBtn = document.getElementById("signOutBtn");
+  const connected = Boolean(currentUser?.email);
+  identity.textContent = connected ? currentUser.email : "Visitante";
+  signInBtn.classList.toggle("hidden", connected);
+  signUpBtn.classList.toggle("hidden", connected);
+  signOutBtn.classList.toggle("hidden", !connected);
 }
 
 function bindNavigation() {
@@ -307,7 +464,7 @@ function bindGarmin() {
         return;
       }
       const after = encodeURIComponent(window.location.href);
-      const startUrl = `${GARMIN_BACKEND_BASE}/api/garmin/connect/start?user_id=${encodeURIComponent(GARMIN_LOCAL_USER_ID)}&redirect=1&after=${after}`;
+      const startUrl = `${GARMIN_BACKEND_BASE}/api/garmin/connect/start?user_id=${encodeURIComponent(garminUserId())}&redirect=1&after=${after}`;
       window.location.href = startUrl;
     } catch {
       showToast("Backend Garmin indisponivel. Suba o servidor em http://localhost:8787.");
@@ -316,7 +473,7 @@ function bindGarmin() {
 
   document.getElementById("disconnectGarmin").addEventListener("click", async () => {
     try {
-      await fetch(`${GARMIN_BACKEND_BASE}/api/users/${encodeURIComponent(GARMIN_LOCAL_USER_ID)}/garmin`, {
+      await fetch(`${GARMIN_BACKEND_BASE}/api/users/${encodeURIComponent(garminUserId())}/garmin`, {
         method: "DELETE",
       });
       state.garminConnected = false;
@@ -372,7 +529,7 @@ function bindGarmin() {
 
 async function syncGarminConnection() {
   try {
-    const response = await fetch(`${GARMIN_BACKEND_BASE}/api/users/${encodeURIComponent(GARMIN_LOCAL_USER_ID)}/garmin`);
+    const response = await fetch(`${GARMIN_BACKEND_BASE}/api/users/${encodeURIComponent(garminUserId())}/garmin`);
     if (!response.ok) throw new Error("status");
     const payload = await response.json();
     state.garminConnected = Boolean(payload.connected);
@@ -812,11 +969,13 @@ function renderGarmin() {
 function generatePlan(profile, test, logs = [], races = []) {
   const days = [...profile.days].sort((a, b) => a - b);
   const start = nextTrainingDate(parseISODate(profile.startDate), days);
+  const loadMetrics = calculateLoadMetrics(logs);
   const riskFactor = profile.risk === "conservador" ? 0.92 : profile.risk === "agressivo" ? 1.06 : 1;
   const levelFactor = profile.level === "iniciante" ? 0.9 : profile.level === "avancado" ? 1.08 : 1;
   const goalFactor = profile.goalDistance === "42K" ? 1.18 : profile.goalDistance === "21K" ? 1.1 : profile.goalDistance === "5K" ? 0.92 : 1;
   const weightFactor = profile.weightKg >= 110 ? 0.9 : profile.weightKg >= 95 ? 0.94 : profile.weightKg >= 85 ? 0.97 : 1;
-  const baseVolume = Math.max(8, profile.weeklyKm * riskFactor * levelFactor * goalFactor * weightFactor);
+  const safetyFactor = loadSafetyFactor(loadMetrics, profile);
+  const baseVolume = Math.max(8, profile.weeklyKm * riskFactor * levelFactor * goalFactor * weightFactor * safetyFactor);
   const pattern = volumePattern(profile.risk);
   const workouts = [];
 
@@ -850,7 +1009,8 @@ function generatePlan(profile, test, logs = [], races = []) {
     workouts.push(...weekWorkouts);
   }
 
-  return applyHistoricalAdjustments(workouts, logs);
+  const adjusted = applyHistoricalAdjustments(workouts, logs);
+  return enforcePlanSafety(adjusted, profile, loadMetrics, races);
 }
 
 function buildWeekSlots(days, preferredLongRunDay, weekRaces = []) {
@@ -1293,6 +1453,201 @@ function volumePattern(risk) {
   if (risk === "conservador") return [1, 1.04, 1.08, 0.9];
   if (risk === "agressivo") return [1, 1.1, 1.16, 0.94];
   return [1, 1.07, 1.12, 0.92];
+}
+
+function calculateLoadMetrics(logs = []) {
+  const today = startOfDay(new Date());
+  const acuteStart = addDays(today, -6);
+  const chronicStart = addDays(today, -27);
+  const painWindowStart = addDays(today, -13);
+  const heavyWindowStart = addDays(today, -9);
+
+  const validLogs = logs
+    .filter((log) => log?.date && Number(log.distance) > 0)
+    .map((log) => ({
+      ...log,
+      dateObj: startOfDay(parseISODate(log.date)),
+      distanceKm: Math.max(0, Number(log.distance) || 0),
+      effortValue: Number(log.effort) || 0,
+    }))
+    .sort((a, b) => b.dateObj - a.dateObj);
+
+  let acuteKm = 0;
+  let chronicKm = 0;
+  let painEvents14d = 0;
+  let heavySignals10d = 0;
+  let acuteSessions = 0;
+
+  const weeklyKm = new Map();
+  validLogs.forEach((log) => {
+    if (log.dateObj >= acuteStart && log.dateObj <= today) {
+      acuteKm += log.distanceKm;
+      acuteSessions += 1;
+    }
+    if (log.dateObj >= chronicStart && log.dateObj <= today) chronicKm += log.distanceKm;
+    if (log.dateObj >= painWindowStart && log.feeling === "dor") painEvents14d += 1;
+    if (log.dateObj >= heavyWindowStart && (log.feeling === "pesado" || log.effortValue >= 8)) heavySignals10d += 1;
+
+    const weekStart = addDays(log.dateObj, -log.dateObj.getDay());
+    const weekKey = toISODate(weekStart);
+    weeklyKm.set(weekKey, (weeklyKm.get(weekKey) || 0) + log.distanceKm);
+  });
+
+  const currentWeekStart = addDays(today, -today.getDay());
+  const last4Weeks = [];
+  for (let i = 0; i < 4; i += 1) {
+    const weekStart = addDays(currentWeekStart, -i * 7);
+    const key = toISODate(weekStart);
+    last4Weeks.push(weeklyKm.get(key) || 0);
+  }
+
+  const currentWeekKm = last4Weeks[0] || 0;
+  const previousWeekKm = last4Weeks[1] || 0;
+  const chronicWeeklyAverage = average(last4Weeks);
+  const acwr = chronicWeeklyAverage > 0 ? acuteKm / chronicWeeklyAverage : 1;
+  const weekRamp = previousWeekKm > 0 ? currentWeekKm / previousWeekKm : 1;
+  const lastLogDate = validLogs[0]?.dateObj || null;
+  const inactivityDays = lastLogDate ? Math.round((today - lastLogDate) / 86400000) : 999;
+
+  return {
+    logsCount: validLogs.length,
+    acuteKm: roundHalf(acuteKm),
+    chronicKm: roundHalf(chronicKm),
+    chronicWeeklyAverage: roundHalf(chronicWeeklyAverage),
+    acwr: Number(acwr.toFixed(2)),
+    weekRamp: Number(weekRamp.toFixed(2)),
+    currentWeekKm: roundHalf(currentWeekKm),
+    previousWeekKm: roundHalf(previousWeekKm),
+    acuteSessions,
+    painEvents14d,
+    heavySignals10d,
+    inactivityDays,
+  };
+}
+
+function loadSafetyFactor(loadMetrics, profile) {
+  let factor = 1;
+
+  if (loadMetrics.painEvents14d > 0) factor *= 0.84;
+  if (loadMetrics.heavySignals10d >= 3) factor *= 0.92;
+  else if (loadMetrics.heavySignals10d === 2) factor *= 0.95;
+
+  if (loadMetrics.acwr >= 1.5) factor *= 0.82;
+  else if (loadMetrics.acwr >= 1.35) factor *= 0.9;
+  else if (loadMetrics.acwr < 0.7 && loadMetrics.logsCount >= 8) factor *= 0.95;
+
+  if (loadMetrics.weekRamp >= 1.25) factor *= 0.9;
+  if (loadMetrics.inactivityDays >= 10) factor *= 0.86;
+  if (profile.level === "iniciante") factor *= 0.97;
+  if (profile.weightKg >= 95 && loadMetrics.logsCount >= 4) factor *= 0.96;
+
+  return clampValue(factor, 0.68, 1.02);
+}
+
+function enforcePlanSafety(workouts, profile, loadMetrics, races) {
+  const qualityTypes = new Set(["interval", "tempo", "fartlek", "hill", "racepace", "progression"]);
+  const sorted = workouts
+    .slice()
+    .sort((a, b) => parseISODate(a.date) - parseISODate(b.date))
+    .map((workout) => ({ ...workout }));
+
+  let hardCountWeek = new Map();
+  sorted.forEach((workout, index) => {
+    if (workout.type === "race") return;
+    const weekKey = `w${workout.week || 0}`;
+    const wasHard = qualityTypes.has(workout.type) || workout.type === "long";
+    const usedHard = hardCountWeek.get(weekKey) || 0;
+
+    if (qualityTypes.has(workout.type) && usedHard >= 2) {
+      sorted[index] = softenWorkout(workout, 0.88, "Limite de intensidade semanal aplicado.");
+      hardCountWeek.set(weekKey, usedHard + 1);
+      return;
+    }
+
+    const previous = sorted[index - 1];
+    if (previous) {
+      const daysBetween = Math.round((parseISODate(workout.date) - parseISODate(previous.date)) / 86400000);
+      const previousHard = qualityTypes.has(previous.type) || previous.type === "long" || previous.type === "race";
+      if (daysBetween <= 1 && previousHard && qualityTypes.has(workout.type)) {
+        sorted[index] = softenWorkout(workout, 0.9, "Recuperacao preservada entre treinos duros.");
+      }
+    }
+
+    if (wasHard) hardCountWeek.set(weekKey, usedHard + 1);
+  });
+
+  for (let week = 2; week <= 4; week += 1) {
+    const current = sorted.filter((workout) => workout.week === week);
+    const previous = sorted.filter((workout) => workout.week === week - 1);
+    const currentVolume = current.reduce((sum, workout) => sum + workout.distance, 0);
+    const previousVolume = previous.reduce((sum, workout) => sum + workout.distance, 0);
+    if (!previousVolume || !currentVolume) continue;
+
+    const maxRamp = week === 4 ? 0.97 : 1.1;
+    const maxVolume = previousVolume * maxRamp;
+    if (currentVolume <= maxVolume + 0.2) continue;
+
+    const scale = maxVolume / currentVolume;
+    current.forEach((workout) => {
+      if (workout.type === "race") return;
+      workout.distance = roundHalf(Math.max(2, workout.distance * scale));
+      workout.adaptation = "Ajuste de progressao semanal para reduzir risco de excesso.";
+      if (qualityTypes.has(workout.type)) {
+        const raceNear = races.some((race) => {
+          const delta = Math.abs((parseISODate(race.date) - parseISODate(workout.date)) / 86400000);
+          return delta <= 6;
+        });
+        if (raceNear) {
+          workout.type = "easy";
+          workout.typeLabel = "Leve";
+          workout.title = "Leve pre-prova";
+          workout.target = zoneRangeText(state.test, "easy");
+          workout.description = `${workout.distance.toFixed(1)} km leve para absorver carga antes da prova.`;
+        }
+      }
+    });
+  }
+
+  const longRunCap = profile.goalDistance === "42K" ? 0.46 : profile.goalDistance === "21K" ? 0.42 : 0.38;
+  for (let week = 1; week <= 4; week += 1) {
+    const weekRuns = sorted.filter((workout) => workout.week === week);
+    const weekVolume = weekRuns.reduce((sum, workout) => sum + workout.distance, 0);
+    const longRun = weekRuns.find((workout) => workout.type === "long");
+    if (!longRun || !weekVolume) continue;
+    const maxLong = roundHalf(weekVolume * longRunCap);
+    if (longRun.distance <= maxLong) continue;
+
+    const excess = longRun.distance - maxLong;
+    longRun.distance = maxLong;
+    longRun.adaptation = "Longao limitado para manter distribuicao semanal segura.";
+
+    const receivers = weekRuns.filter((workout) => ["easy", "recovery", "progression"].includes(workout.type) && workout.id !== longRun.id);
+    if (!receivers.length) continue;
+    const bonus = roundHalf(excess / receivers.length);
+    receivers.forEach((workout) => {
+      workout.distance = roundHalf(Math.max(2, workout.distance + bonus));
+    });
+  }
+
+  if (loadMetrics.painEvents14d > 0 || loadMetrics.inactivityDays >= 10) {
+    return sorted.map((workout, index) => {
+      if (workout.type === "race") return workout;
+      if (index > 5 && workout.type === "long" && workout.distance > profile.longRunKm * 1.05) {
+        return {
+          ...workout,
+          distance: roundHalf(profile.longRunKm * 1.05),
+          adaptation: "Retorno progressivo apos dor/pausa recente.",
+        };
+      }
+      return softenWorkout(workout, 0.94, "Bloco de controle para retorno seguro.");
+    });
+  }
+
+  return sorted;
+}
+
+function clampValue(value, min, max) {
+  return Math.min(max, Math.max(min, value));
 }
 
 function typeLabel(type) {

@@ -6,6 +6,7 @@ Backend scaffold para conectar o app com Garmin Connect Developer Program via OA
 
 - inicia OAuth2 PKCE (`/api/garmin/connect/start`);
 - recebe callback OAuth (`/api/garmin/connect/callback`);
+- expoe config publica de frontend (`/api/public-config`) para Supabase auth;
 - armazena token por atleta localmente em `data/store.json`;
 - endpoint de status da conexao (`/api/users/:id/garmin`);
 - endpoint de desconexao (`DELETE /api/users/:id/garmin`);
@@ -36,7 +37,7 @@ GET http://localhost:8787/health
 2. No Render, crie `New +` -> `Blueprint` e selecione o repo.
 3. O Render vai ler `render.yaml` na raiz e criar o servico `runpro-garmin`.
 4. Apos criar, abra `Environment` e preencha:
-`GARMIN_CLIENT_ID`, `GARMIN_CLIENT_SECRET`, `GARMIN_OAUTH_AUTHORIZE_URL`, `GARMIN_OAUTH_TOKEN_URL`, `GARMIN_ACTIVITY_PULL_URL`, `GARMIN_TRAINING_PUSH_URL`.
+`GARMIN_CLIENT_ID`, `GARMIN_CLIENT_SECRET`, `GARMIN_OAUTH_AUTHORIZE_URL`, `GARMIN_OAUTH_TOKEN_URL`, `GARMIN_ACTIVITY_PULL_URL`, `GARMIN_TRAINING_PUSH_URL`, `SUPABASE_URL`, `SUPABASE_ANON_KEY`.
 5. Ajuste as URLs fixas para o dominio real gerado no Render:
 `FRONTEND_ORIGIN`, `FRONTEND_ORIGINS`, `APP_BASE_URL`, `APP_PUBLIC_URL`.
 6. Em Garmin Developer Program, configure:
@@ -65,3 +66,15 @@ GET http://localhost:8787/health
   - auditoria de logs;
   - rate limiting;
   - autenticacao dos endpoints.
+
+## Supabase multiusuario (auth + isolamento)
+
+1. Crie um projeto no Supabase.
+2. Abra SQL Editor e rode [backend/supabase/schema.sql](<C:/Users/vitor.bernardo/Documents/Codex/2026-05-19/criar-um-aplicativo-ou-site-que/backend/supabase/schema.sql>).
+3. Em `Authentication -> Providers`, deixe `Email` habilitado.
+4. Copie:
+   - `Project URL` -> `SUPABASE_URL`
+   - `anon public key` -> `SUPABASE_ANON_KEY`
+5. Salve no Render e redeploy.
+
+Com isso cada atleta salva e le somente o proprio estado via RLS.

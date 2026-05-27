@@ -70,6 +70,12 @@
             <h1 id="pageTitle">Painel do atleta</h1>
           </div>
           <div class="top-actions">
+            <div class="auth-strip" id="authStrip">
+              <span id="authIdentity">Visitante</span>
+              <button class="ghost-action auth-mini" id="signInBtn">Entrar</button>
+              <button class="ghost-action auth-mini" id="signUpBtn">Criar conta</button>
+              <button class="ghost-action auth-mini hidden" id="signOutBtn">Sair</button>
+            </div>
             <button class="icon-button" id="resetApp" title="Reiniciar dados">
               <span class="icon" data-icon="refresh"></span>
             </button>
@@ -578,7 +584,33 @@
       </main>
     </div>
 
+    <dialog id="authDialog" class="auth-dialog">
+      <form method="dialog" class="auth-card" id="authForm">
+        <div class="section-heading compact">
+          <div>
+            <p class="eyebrow">Conta</p>
+            <h2 id="authDialogTitle">Entrar</h2>
+          </div>
+          <button type="button" class="icon-button" id="authDialogClose">
+            <span class="icon" data-icon="check"></span>
+          </button>
+        </div>
+        <div class="field-grid one">
+          <label>
+            Email
+            <input type="email" name="authEmail" required autocomplete="email" />
+          </label>
+          <label>
+            Senha
+            <input type="password" name="authPassword" required minlength="6" autocomplete="current-password" />
+          </label>
+        </div>
+        <button type="submit" class="primary-action" id="authSubmitBtn">Entrar</button>
+      </form>
+    </dialog>
+
     <div class="toast" id="toast" role="status" aria-live="polite"></div>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
     <script src="app.js"></script>
   </body>
 </html>

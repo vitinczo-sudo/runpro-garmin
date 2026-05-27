@@ -44,6 +44,8 @@ export function loadConfig() {
     garminActivityPullUrl: optional("GARMIN_ACTIVITY_PULL_URL"),
     garminTrainingPushUrl: optional("GARMIN_TRAINING_PUSH_URL"),
     webhookToken: optional("GARMIN_WEBHOOK_TOKEN"),
+    supabaseUrl: optional("SUPABASE_URL"),
+    supabaseAnonKey: optional("SUPABASE_ANON_KEY"),
   };
 
   config.garminRedirectUri = `${config.appPublicUrl}/api/garmin/connect/callback`;
