@@ -127,10 +127,15 @@ function bindAuth() {
   const signUpBtn = document.getElementById("signUpBtn");
   const signOutBtn = document.getElementById("signOutBtn");
   const form = document.getElementById("authForm");
+  const gateForm = document.getElementById("authGateForm");
+  const gateSignInBtn = document.getElementById("gateSignInBtn");
+  const gateSignUpBtn = document.getElementById("gateSignUpBtn");
 
   close.addEventListener("click", () => dialog.close());
   signInBtn.addEventListener("click", () => openAuthDialog("signin"));
   signUpBtn.addEventListener("click", () => openAuthDialog("signup"));
+  gateSignInBtn.addEventListener("click", () => renderAuthGate("signin"));
+  gateSignUpBtn.addEventListener("click", () => renderAuthGate("signup"));
   signOutBtn.addEventListener("click", async () => {
     if (!supabaseClient) return;
     await supabaseClient.auth.signOut();
@@ -144,27 +149,19 @@ function bindAuth() {
 
   form.addEventListener("submit", async (event) => {
     event.preventDefault();
-    if (!supabaseClient) {
-      showToast("Supabase nao configurado. Rode em modo local ou configure variaveis.");
-      return;
-    }
     const data = new FormData(form);
     const email = String(data.get("authEmail") || "").trim();
     const password = String(data.get("authPassword") || "");
-    if (!email || !password) return;
+    const ok = await submitAuth(authMode, email, password, true);
+    if (ok) dialog.close();
+  });
 
-    if (authMode === "signup") {
-      const { error } = await supabaseClient.auth.signUp({ email, password });
-      if (error) return showToast(`Cadastro falhou: ${error.message}`);
-      showToast("Conta criada. Verifique seu email para confirmar.");
-      dialog.close();
-      return;
-    }
-
-    const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
-    if (error) return showToast(`Login falhou: ${error.message}`);
-    dialog.close();
-    showToast("Login realizado.");
+  gateForm.addEventListener("submit", async (event) => {
+    event.preventDefault();
+    const data = new FormData(gateForm);
+    const email = String(data.get("authEmail") || "").trim();
+    const password = String(data.get("authPassword") || "");
+    await submitAuth(authMode, email, password, false);
   });
 }
 
@@ -176,6 +173,33 @@ function openAuthDialog(mode) {
   title.textContent = mode === "signup" ? "Criar conta" : "Entrar";
   submit.textContent = mode === "signup" ? "Criar conta" : "Entrar";
   dialog.showModal();
+}
+
+async function submitAuth(mode, email, password, viaDialog = false) {
+  if (!supabaseClient) {
+    showToast("Supabase nao configurado. Conclua a configuracao no Render.");
+    return false;
+  }
+  if (!email || !password) return false;
+
+  if (mode === "signup") {
+    const { error } = await supabaseClient.auth.signUp({ email, password });
+    if (error) {
+      showToast(`Cadastro falhou: ${error.message}`);
+      return false;
+    }
+    showToast("Conta criada. Agora entre com email e senha.");
+    if (!viaDialog) renderAuthGate("signin");
+    return true;
+  }
+
+  const { error } = await supabaseClient.auth.signInWithPassword({ email, password });
+  if (error) {
+    showToast(`Login falhou: ${error.message}`);
+    return false;
+  }
+  showToast("Login realizado.");
+  return true;
 }
 
 async function initAuthAndLoadState() {
@@ -259,6 +283,35 @@ function renderAuthStrip() {
   signInBtn.classList.toggle("hidden", connected);
   signUpBtn.classList.toggle("hidden", connected);
   signOutBtn.classList.toggle("hidden", !connected);
+  renderAuthGate(authMode);
+}
+
+function renderAuthGate(mode = authMode) {
+  authMode = mode;
+  const gate = document.getElementById("authGate");
+  const title = document.getElementById("authGateTitle");
+  const subtitle = document.getElementById("authGateSubtitle");
+  const submit = document.getElementById("authGateSubmitBtn");
+  const signInBtn = document.getElementById("gateSignInBtn");
+  const signUpBtn = document.getElementById("gateSignUpBtn");
+  const locked = !currentUser;
+
+  if (locked) {
+    document.body.classList.add("auth-locked");
+    gate.classList.remove("hidden");
+    title.textContent = authMode === "signup" ? "Criar conta" : "Entrar";
+    submit.textContent = authMode === "signup" ? "Criar conta" : "Entrar";
+    subtitle.textContent =
+      authMode === "signup"
+        ? "Crie sua conta para acessar seu painel e salvar treinos com perfil individual."
+        : "Acesse sua conta para abrir seu painel individual de treinos.";
+    signInBtn.classList.toggle("hidden", authMode === "signin");
+    signUpBtn.classList.toggle("hidden", authMode === "signup");
+    return;
+  }
+
+  document.body.classList.remove("auth-locked");
+  gate.classList.add("hidden");
 }
 
 function bindNavigation() {

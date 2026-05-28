@@ -7,6 +7,29 @@
     <link rel="stylesheet" href="styles.css" />
   </head>
   <body>
+    <section class="auth-gate hidden" id="authGate" aria-live="polite">
+      <div class="auth-gate-card">
+        <p class="eyebrow">RunPro Coach</p>
+        <h2 id="authGateTitle">Entrar</h2>
+        <p id="authGateSubtitle">Acesse sua conta para abrir seu painel individual de treinos.</p>
+        <div class="auth-gate-switch">
+          <button type="button" class="ghost-action auth-mini" id="gateSignInBtn">Entrar</button>
+          <button type="button" class="ghost-action auth-mini" id="gateSignUpBtn">Criar conta</button>
+        </div>
+        <form id="authGateForm" class="auth-form">
+          <label>
+            Email
+            <input name="authEmail" type="email" autocomplete="email" required />
+          </label>
+          <label>
+            Senha
+            <input name="authPassword" type="password" autocomplete="current-password" minlength="6" required />
+          </label>
+          <button type="submit" class="primary-action" id="authGateSubmitBtn">Entrar</button>
+        </form>
+      </div>
+    </section>
+
     <div class="app-shell">
       <aside class="sidebar" aria-label="Navegacao principal">
         <div class="brand">
